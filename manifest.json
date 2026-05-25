@@ -1,6 +1,6 @@
 {
-  "name": "Our Digital Wedding Wall",
-  "short_name": "WeddingWall",
+  "name": "Our Digital Wall",
+  "short_name": "DigitalWall",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0c0c0c",
