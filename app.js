@@ -1,7 +1,7 @@
 // ==================== CONFIGURATION ====================
 const username = "ravikiran-ds"; 
 const repo = "carousel";
-const myBranch = "main";
+const myBranch = "myself";
 
 const tokenPart1 = "github_pat_11AOPNTWA0nAbSAp7nDRf4";
 const tokenPart2 = "_xlNhMDKmtit0dASoG0UXKDTLkbrlsxQ3GboNwoUe1snCTT63WROCAAd6H6n";
@@ -246,9 +246,6 @@ function readFileAsDataURL(file) {
     });
 }
 
-// MASTER MULTI-FILE BATCH LOADING SPIN PIPELINE
-// MASTER MULTI-FILE BATCH LOADING PIPELINE (Compressed Previews Only)
-// MASTER MULTI-FILE PIPELINE (With Anti-Blocking Throttling Delay)
 async function uploadPhoto() {
     if (!isLiveMode) return;
     const fileInput = document.getElementById('photoInput');
@@ -276,12 +273,12 @@ async function uploadPhoto() {
                 const videoData = await readFileAsDataURL(file);
                 const base64Video = videoData.split(',')[1];
                 const timestamp = Date.now() + i;
-                await pushToGitHub(`gallery-assets/guest_${timestamp}.webm`, base64Video);
+                // Uploads directly to root directory of current branch
+                await pushToGitHub(`guest_${timestamp}.mp4`, base64Video);
             } catch (err) {
                 status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping broken video container.</span>`;
             }
             
-            // Anti-Abuse Tweak: Pause for 1.5 seconds before starting the next file block
             if (i < totalFiles - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1500));
             }
@@ -304,14 +301,14 @@ async function uploadPhoto() {
             const timestamp = Date.now() + i;
             
             status.innerHTML = `<span class="text-warning">${currentProgressMsg} Syncing with the wall...</span>`;
-            await pushToGitHub(`gallery-assets/guest_${timestamp}.jpg`, base64ImageContent);
+            // Uploads directly to root directory of current branch
+            await pushToGitHub(`guest_${timestamp}.jpg`, base64ImageContent);
             
         } catch (imageErr) {
             console.error("Mobile compression halt:", imageErr);
             status.innerHTML = `<span class="text-danger">${currentProgressMsg} Processing error.</span>`;
         }
 
-        // ANTI-ABUSE RATE LIMIT BYPASS: Pause for exactly 1.5 seconds to bypass GitHub's server blocks
         if (i < totalFiles - 1) {
             status.innerHTML = `<span class="text-muted">${currentProgressMsg} Waiting for server cooldown...</span>`;
             await new Promise(resolve => setTimeout(resolve, 1500));
