@@ -81,28 +81,43 @@ function compressImage(imgElement) {
     });
 }
 // 5-SECOND MOBILE-SIDE VIDEO TRIMMING ENGINE
+// UNIVERSAL MOBILE VIDEO TRIMMING ENGINE (Cross-Platform iPhone & Android MP4 Fix)
 function trimVideo(file) {
     return new Promise((resolve, reject) => {
         const video = document.createElement('video');
         video.src = URL.createObjectURL(file);
-        video.muted = true; video.playsInline = true;
+        video.muted = true; 
+        video.playsInline = true;
 
         video.onloadedmetadata = function() {
+            // If the video is already 5 seconds or shorter, keep the native original file format
             if (video.duration <= 5) { resolve(file); return; }
 
             video.play();
             const stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8,opus' });
+            
+            // Fix: Check if the device prefers Apple's MP4/H264 format, otherwise fallback to standard WebM
+            let selectedMimeType = 'video/mp4;codecs=avc1.42E01E,mp4a.40.2';
+            if (!MediaRecorder.isTypeSupported(selectedMimeType)) {
+                selectedMimeType = 'video/webm;codecs=vp8,opus';
+            }
+
             const chunks = [];
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
 
             mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
             mediaRecorder.onstop = () => {
-                const trimmedBlob = new Blob(chunks, { type: 'video/webm' });
-                resolve(new File([trimmedBlob], "trimmed_" + file.name, { type: 'video/webm' }));
-                video.pause(); URL.revokeObjectURL(video.src);
+                // Determine extension based on our active recording container type
+                const fileExt = selectedMimeType.includes('mp4') ? '.mp4' : '.webm';
+                const trimmedBlob = new Blob(chunks, { type: fileExt === '.mp4' ? 'video/mp4' : 'video/webm' });
+                
+                resolve(new File([trimmedBlob], "trimmed_" + baseFileName + fileExt, { type: trimmedBlob.type }));
+                video.pause(); 
+                URL.revokeObjectURL(video.src);
             };
 
             mediaRecorder.start();
+            // Automatically stop recording and compile exactly at the 5-second mark
             setTimeout(() => { if (mediaRecorder.state !== "inactive") mediaRecorder.stop(); }, 5000);
         };
         video.onerror = () => reject("Parsing fault.");
