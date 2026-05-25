@@ -1,6 +1,7 @@
 // ==================== CONFIGURATION ====================
 const username = "ravikiran-ds"; 
 const repo = "carousel";
+const myBranch = "myself";
 
 const tokenPart1 = "github_pat_11AOPNTWA0nAbSAp7nDRf4";
 const tokenPart2 = "_xlNhMDKmtit0dASoG0UXKDTLkbrlsxQ3GboNwoUe1snCTT63WROCAAd6H6n";
@@ -94,7 +95,7 @@ function trimVideo(file) {
 async function loadGallery() {
     try {
         // Appending a timestamp query string drops browser caches completely without custom headers
-        const cleanFetchUrl = `${apiUrl}?t=${Date.now()}`;
+        const cleanFetchUrl = `${apiUrl}?t=${Date.now()}&ref=${myBranch}`;
         const fetchHeaders = isLiveMode ? { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } } : {};
         
         const response = await fetch(cleanFetchUrl, fetchHeaders);
@@ -293,14 +294,23 @@ function processAndPushToGitHub(rawBase64, baseName, fileType, appliedExt, origi
 
 async function pushToGitHub(fileName, base64DataString) {
     const uploadUrl = apiUrl + fileName;
+    //const myBranch = "YOUR_BRANCH_NAME"; // Put the exact name of your custom branch here
+    
     try {
-        const commitData = { message: `App upload: ${fileName}`, content: base64DataString };
+        const commitData = { 
+            message: `App upload: ${fileName}`, 
+            content: base64DataString,
+            branch: myBranch // This forces the file into your specific branch instead of "main"
+        };
+        
         await fetch(uploadUrl, {
             method: 'PUT',
-            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }, // Cleaned headers completely
+            headers: { 'Authorization': `token ${GITHUB_TOKEN}` },
             body: JSON.stringify(commitData)
         });
-    } catch (err) { console.error("Live sync interruption:", err); }
+    } catch (err) { 
+        console.error("Live sync interruption:", err); 
+    }
 }
 
 initializeSystem();
