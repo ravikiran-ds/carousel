@@ -5,8 +5,6 @@ const myBranch = "myself";
 
 const tokenPart1 = "github_pat_11AOPNTWA0nAbSAp7nDRf4";
 const tokenPart2 = "_xlNhMDKmtit0dASoG0UXKDTLkbrlsxQ3GboNwoUe1snCTT63WROCAAd6H6n";
-
-const GOOGLE_DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbzysJj1cQ6FkWuV6954sxqJT4ANm8WM4dbIKF27sU3qDl5MKDmEr2N5jduQZdAc3Tm55w/exec";
 // =======================================================
 
 const GITHUB_TOKEN = (tokenPart1 && tokenPart2) ? (tokenPart1 + tokenPart2) : "";
@@ -129,7 +127,7 @@ async function loadGallery() {
             if (img.name.endsWith('.webm') || img.name.endsWith('.mp4')) {
                 card.innerHTML = `<video src="${img.download_url}" autoplay loop playsinline muted loading="lazy"></video>`;
             } else {
-                card.innerHTML = `<img src="${img.download_url}" loading="lazy" alt="Wedding Asset">`;
+                card.innerHTML = `<img src="${img.download_url}" loading="lazy" alt="Asset">`;
             }
             grid.appendChild(card);
         });
@@ -177,7 +175,7 @@ async function shareActiveImage(event) {
     
     if (navigator.share) {
         try {
-            await navigator.share({ title: 'Wedding Memory', text: 'Look at this file from the wedding gallery!', url: currentImgUrl });
+            await navigator.share({ title: 'Memory', text: 'Look at this file from the gallery!', url: currentImgUrl });
         } catch (err) { console.log("Cancelled share operation."); }
     } else {
         navigator.clipboard.writeText(currentImgUrl);
@@ -214,6 +212,7 @@ function readFileAsDataURL(file) {
 }
 
 // MASTER MULTI-FILE BATCH LOADING SPIN PIPELINE
+// MASTER MULTI-FILE BATCH LOADING PIPELINE (Compressed Previews Only)
 async function uploadPhoto() {
     if (!isLiveMode) return;
     const fileInput = document.getElementById('photoInput');
@@ -234,8 +233,10 @@ async function uploadPhoto() {
         status.innerHTML = `<span class="text-warning">${currentProgressMsg} Processing file streams...</span>`;
 
         if (file.type.startsWith('video/')) {
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Checking clip runtime limits...</span>`;
-            try { file = await trimVideo(file); } catch (err) {
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Trimming video clip...</span>`;
+            try { 
+                file = await trimVideo(file); 
+            } catch (err) {
                 status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping corrupted video.</span>`;
                 continue; 
             }
@@ -247,19 +248,8 @@ async function uploadPhoto() {
         const baseFileName = `guest_${timestamp}`;
         const originalExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
         const finalExt = file.type === 'video/webm' ? '.webm' : originalExtension;
-        const fullFileNameOriginal = `${baseFileName}${finalExt}`;
 
-        // --- PIPELINE A: DRIVE ARCHIVE ---
-        status.innerHTML = `<span class="text-warning">${currentProgressMsg} Backing up uncompressed master to Google Drive...</span>`;
-        try {
-            await fetch(GOOGLE_DRIVE_API_URL, {
-                method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify({ base64Data: base64OriginalContent, mimeType: file.type, fileName: fullFileNameOriginal })
-            });
-        } catch (err) { console.error("Drive drop bypass:", err); }
-
-        // --- PIPELINE B: DISPATCH TO LIVE WALL ---
+        // Process, compress images, and push directly to your live wall branch
         await processAndPushToGitHub(fileData, baseFileName, file.type, finalExt, base64OriginalContent, currentProgressMsg, status);
     }
 
@@ -271,7 +261,6 @@ async function uploadPhoto() {
     status.innerHTML = `<span class="text-success">🎉 All ${totalFiles} items shared successfully!</span>`;
     fileInput.value = '';
 }
-
 function processAndPushToGitHub(rawBase64, baseName, fileType, appliedExt, originalBase64, progressMsg, statusElement) {
     return new Promise((resolve) => {
         const scannerImg = document.getElementById('imgScanner');
