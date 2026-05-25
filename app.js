@@ -91,17 +91,13 @@ function trimVideo(file) {
 }
 
 // CHRONOLOGICAL MASONRY TIMELINE SYNC ENGINE
-// CHRONOLOGICAL MASONRY TIMELINE SYNC ENGINE (Fixed CORS Cache Block)
 async function loadGallery() {
     try {
-        // Fix: Append a unique timestamp query parameter to bust the cache instead of using custom headers
-        const cacheBusterUrl = `${apiUrl}?t=${Date.now()}`;
-
-        const fetchHeaders = isLiveMode 
-            ? { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } } // Removed 'Cache-Control'
-            : {};
-
-        const response = await fetch(cacheBusterUrl, fetchHeaders);
+        // Appending a timestamp query string drops browser caches completely without custom headers
+        const cleanFetchUrl = `${apiUrl}?t=${Date.now()}`;
+        const fetchHeaders = isLiveMode ? { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } } : {};
+        
+        const response = await fetch(cleanFetchUrl, fetchHeaders);
         const files = await response.json();
         
         let images = files.filter(file => file.name.match(/\.(jpg|jpeg|png|gif|webp|webm|mp4)$/i));
@@ -156,6 +152,7 @@ function openLightbox(index) {
     document.body.style.overflow = 'hidden'; 
 }
 
+// CLOSE LIGHTBOX MODAL
 function closeLightbox(event) {
     if (event.target.id === 'lightbox' || event.target.className === 'close-btn' || event.target.classList.contains('lightbox-content-wrapper')) {
         document.getElementById('lightbox').style.display = 'none';
@@ -163,6 +160,7 @@ function closeLightbox(event) {
     }
 }
 
+// CHANGE IMAGES (PREV / NEXT)
 function changeImage(direction, event) {
     if (event) event.stopPropagation(); 
     currentLightboxIndex += direction;
@@ -299,7 +297,7 @@ async function pushToGitHub(fileName, base64DataString) {
         const commitData = { message: `App upload: ${fileName}`, content: base64DataString };
         await fetch(uploadUrl, {
             method: 'PUT',
-            headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }, // Cleaned headers completely
             body: JSON.stringify(commitData)
         });
     } catch (err) { console.error("Live sync interruption:", err); }
