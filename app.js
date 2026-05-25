@@ -263,9 +263,30 @@ async function uploadPhoto() {
         const currentProgressMsg = `[File ${i + 1} of ${totalFiles}]`;
         
         btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading (${i + 1}/${totalFiles})...`;
-        status.innerHTML = `<span class="text-warning">${currentProgressMsg} Optimizing media...</span>`;
+        status.innerHTML = `<span class="text-warning">${currentProgressMsg} Reading media files...</span>`;
 
-        // 1. Handle Video Trimming smoothly
+        // 1. INTERCEPT HEIC TRANSFORMATION
+        if (file.name.match(/\.(heic|heif)$/i) || file.type === "image/heic" || file.type === "image/heif") {
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Converting Apple HEIC to standard JPEG...</span>`;
+            try {
+                // Convert the raw HEIC blob to a standard browser-readable JPEG blob
+                const conversionResult = await heic2any({
+                    blob: file,
+                    toType: "image/jpeg",
+                    quality: 0.70
+                });
+                
+                // Reconstruct our file reference pointer as a standard JPEG file type array target
+                const processedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
+                file = new File([processedBlob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
+            } catch (heicErr) {
+                console.error("HEIC parsing error:", heicErr);
+                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Conversion failed for Apple photo format.</span>`;
+                continue;
+            }
+        }
+
+        // 2. Handle Video Trimming smoothly
         if (file.type.startsWith('video/')) {
             status.innerHTML = `<span class="text-warning">${currentProgressMsg} Trimming video clip...</span>`;
             try { 
@@ -273,7 +294,6 @@ async function uploadPhoto() {
                 const videoData = await readFileAsDataURL(file);
                 const base64Video = videoData.split(',')[1];
                 const timestamp = Date.now() + i;
-                // Uploads directly to root directory of current branch
                 await pushToGitHub(`guest_${timestamp}.mp4`, base64Video);
             } catch (err) {
                 status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping broken video container.</span>`;
@@ -285,7 +305,7 @@ async function uploadPhoto() {
             continue; 
         }
 
-        // 2. Handle Image Compression
+        // 3. Handle Image Compression (Now safely handles converted HEIC files too)
         try {
             status.innerHTML = `<span class="text-warning">${currentProgressMsg} Scaling image resolution...</span>`;
             
@@ -301,7 +321,6 @@ async function uploadPhoto() {
             const timestamp = Date.now() + i;
             
             status.innerHTML = `<span class="text-warning">${currentProgressMsg} Syncing with the wall...</span>`;
-            // Uploads directly to root directory of current branch
             await pushToGitHub(`guest_${timestamp}.jpg`, base64ImageContent);
             
         } catch (imageErr) {

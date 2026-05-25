@@ -6,6 +6,7 @@
     <title>Our Live Gallery</title>
     
     <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/3342/3342137.png" type="image/png">
     <link rel="icon" href="data:,">
     <meta name="theme-color" content="#0c0c0c">
@@ -53,13 +54,13 @@
 
     <div class="upload-section d-none" id="uploadBar">
         <div class="d-flex justify-content-center align-items-center gap-2 max-width-md mx-auto px-3">
-            <input type="file" id="photoInput" accept="image/*,video/*" class="form-control form-control-dark" style="max-width: 250px;" multiple>
+            <input type="file" id="photoInput" accept="image/*,video/*,.heic,.HEIC" class="form-control form-control-dark" style="max-width: 250px;" multiple>
             <button class="btn btn-primary px-4" id="uploadBtn" onclick="uploadPhoto()">Upload</button>
         </div>
         <div id="uploadStatus" class="mt-2 small text-muted"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="app.js?v=1.0.2"></script>
+    <script src="app.js?v=1.0.3"></script>
 </body>
 </html>
