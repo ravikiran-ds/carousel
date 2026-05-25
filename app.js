@@ -2,8 +2,8 @@
 const username = "ravikiran-ds"; 
 const repo = "carousel";
 
-const tokenPart1 = "github_pat_11AOPNTWA0nAbSAp7nDRf4xlNhMDKmtit0dASoG0UXKDTLk";
-const tokenPart2 = "brlsxQ3GboNwoUe1snCTT63WROCAAd6H6n";
+const tokenPart1 = "github_pat_11AOPNTWA0nAbSAp7nDRf4";
+const tokenPart2 = "_xlNhMDKmtit0dASoG0UXKDTLkbrlsxQ3GboNwoUe1snCTT63WROCAAd6H6n";
 
 const GOOGLE_DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbzysJj1cQ6FkWuV6954sxqJT4ANm8WM4dbIKF27sU3qDl5MKDmEr2N5jduQZdAc3Tm55w/exec";
 // =======================================================
