@@ -92,9 +92,9 @@ function trimVideo(file) {
 }
 
 // CHRONOLOGICAL MASONRY TIMELINE SYNC ENGINE
+// CHRONOLOGICAL MASONRY TIMELINE SYNC ENGINE (Autoplay Video Grid Version)
 async function loadGallery() {
     try {
-        // Appending a timestamp query string drops browser caches completely without custom headers
         const cleanFetchUrl = `${apiUrl}?t=${Date.now()}&ref=${myBranch}`;
         const fetchHeaders = isLiveMode ? { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } } : {};
         
@@ -125,8 +125,9 @@ async function loadGallery() {
             card.className = 'grid-item';
             card.onclick = () => openLightbox(index);
             
+            // CHANGES HERE: Added autoplay, loop, playsinline, and muted to the video tag
             if (img.name.endsWith('.webm') || img.name.endsWith('.mp4')) {
-                card.innerHTML = `<video src="${img.download_url}" muted loop playsinline loading="lazy"></video>`;
+                card.innerHTML = `<video src="${img.download_url}" autoplay loop playsinline muted loading="lazy"></video>`;
             } else {
                 card.innerHTML = `<img src="${img.download_url}" loading="lazy" alt="Wedding Asset">`;
             }
@@ -134,7 +135,6 @@ async function loadGallery() {
         });
     } catch (err) { console.error("Gallery frame sync error:", err); }
 }
-
 // LIGHTBOX MEDIA VIEWER
 function openLightbox(index) {
     currentLightboxIndex = index;
