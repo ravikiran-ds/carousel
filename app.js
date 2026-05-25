@@ -1,7 +1,7 @@
 // ==================== CONFIGURATION ====================
 const username = "ravikiran-ds"; 
 const repo = "carousel";
-const myBranch = "main";
+const myBranch = "myself";
 
 const tokenPart1 = "github_pat_11AOPNTWA0nAbSAp7nDRf4";
 const tokenPart2 = "_xlNhMDKmtit0dASoG0UXKDTLkbrlsxQ3GboNwoUe1snCTT63WROCAAd6H6n";
