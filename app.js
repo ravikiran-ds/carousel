@@ -12,7 +12,6 @@ const GITHUB_TOKEN = (tokenPart1 && tokenPart2) ? (tokenPart1 + tokenPart2) : ""
 const apiUrl = `https://api.github.com/repos/${username}/${repo}/contents/`;
 let activeImagesArray = []; 
 let currentLightboxIndex = -1;
-let nsfwModel = null;
 
 const isLiveMode = GITHUB_TOKEN.trim() !== "" && !GITHUB_TOKEN.includes("FIRST_HALF_OF_YOUR_TOKEN");
 
@@ -23,10 +22,6 @@ async function initializeSystem() {
     if (isLiveMode) {
         document.getElementById('uploadBar').classList.remove('d-none');
         document.body.classList.add('has-upload-bar');
-        
-        updateSplashStatus("Compiling safety scanners...");
-        await loadFilterModel();
-        
         setInterval(loadGallery, 15000); 
     }
     
@@ -47,13 +42,7 @@ function renderGlowSkeletons() {
     grid.innerHTML = Array(6).fill('<div class="grid-item skeleton-placeholder"></div>').join('');
 }
 
-async function loadFilterModel() {
-    try {
-        nsfwModel = await nsfwjs.load('https://nsfwjs.com/model/', { size: 299 });
-    } catch (err) { console.error("AI filter engine compilation failure:", err); }
-}
-
-// DYNAMIC IMAGE COMPRESSION ENGINE
+// IMAGE COMPRESSION ENGINE
 function compressImage(imgElement) {
     return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
@@ -135,7 +124,7 @@ async function loadGallery() {
             if (img.name.endsWith('.webm') || img.name.endsWith('.mp4')) {
                 card.innerHTML = `<video src="${img.download_url}" muted loop playsinline loading="lazy"></video>`;
             } else {
-                card.innerHTML = `<img src="${img.download_url}" loading="lazy" alt="Asset">`;
+                card.innerHTML = `<img src="${img.download_url}" loading="lazy" alt="Wedding Asset">`;
             }
             grid.appendChild(card);
         });
@@ -182,7 +171,7 @@ async function shareActiveImage(event) {
     
     if (navigator.share) {
         try {
-            await navigator.share({ title: 'Memory', text: 'Look at this file from the gallery!', url: currentImgUrl });
+            await navigator.share({ title: 'Wedding Memory', text: 'Look at this file from the wedding gallery!', url: currentImgUrl });
         } catch (err) { console.log("Cancelled share operation."); }
     } else {
         navigator.clipboard.writeText(currentImgUrl);
@@ -219,60 +208,62 @@ function readFileAsDataURL(file) {
 }
 
 // MASTER MULTI-FILE BATCH LOADING SPIN PIPELINE
-// 3. REFRESH CHRONOLOGICAL WALL GENERATION PIPELINE (Fixed for CORS)
-async function loadGallery() {
-    try {
-        // Cache Busting: Add a unique timestamp parameter (?t=currentTime) to the end of the URL.
-        // This tricks GitHub into bypassing the cache without using forbidden Cache-Control headers.
-        const cacheBustUrl = `${apiUrl}?t=${Date.now()}`;
+async function uploadPhoto() {
+    if (!isLiveMode) return;
+    const fileInput = document.getElementById('photoInput');
+    const status = document.getElementById('uploadStatus');
+    const btn = document.getElementById('uploadBtn');
+    
+    const filesList = fileInput.files;
+    if (filesList.length === 0) { status.innerText = "Please select files first."; return; }
+    
+    btn.disabled = true;
+    const totalFiles = filesList.length;
 
-        const fetchHeaders = isLiveMode 
-            ? { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } } // Removed Cache-Control!
-            : {};
-
-        const response = await fetch(cacheBustUrl, fetchHeaders);
-        const files = await response.json();
+    for (let i = 0; i < totalFiles; i++) {
+        let file = filesList[i];
+        const currentProgressMsg = `[File ${i + 1} of ${totalFiles}]`;
         
-        // Handle edge cases where the response isn't an array
-        if (!Array.isArray(files)) {
-            console.error("Unexpected API response format:", files);
-            return;
-        }
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading (${i + 1}/${totalFiles})...`;
+        status.innerHTML = `<span class="text-warning">${currentProgressMsg} Processing file streams...</span>`;
 
-        let images = files.filter(file => file.name.match(/\.(jpg|jpeg|png|gif|webp|webm|mp4)$/i));
-        
-        images.sort((a, b) => {
-            const timeA = parseInt(a.name.split('_')[1]) || 0;
-            const timeB = parseInt(b.name.split('_')[1]) || 0;
-            return timeA - timeB;
-        });
-
-        if (images.length === activeImagesArray.length) return;
-        activeImagesArray = images;
-
-        const grid = document.getElementById('photoGrid');
-        grid.innerHTML = ''; 
-
-        if (images.length === 0) {
-            grid.innerHTML = '<div class="text-center text-muted py-5 w-100">Gallery album is empty.</div>';
-            return;
-        }
-
-        images.forEach((img, index) => {
-            const card = document.createElement('div');
-            card.className = 'grid-item';
-            card.onclick = () => openLightbox(index);
-            
-            if (img.name.endsWith('.webm') || img.name.endsWith('.mp4')) {
-                card.innerHTML = `<video src="${img.download_url}" muted loop playsinline loading="lazy"></video>`;
-            } else {
-                card.innerHTML = `<img src="${img.download_url}" loading="lazy" alt="Gallery Asset">`;
+        if (file.type.startsWith('video/')) {
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Checking clip runtime limits...</span>`;
+            try { file = await trimVideo(file); } catch (err) {
+                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping corrupted video.</span>`;
+                continue; 
             }
-            grid.appendChild(card);
-        });
-    } catch (err) { 
-        console.error("Gallery frame sync error:", err); 
+        }
+
+        const fileData = await readFileAsDataURL(file);
+        const base64OriginalContent = fileData.split(',')[1];
+        const timestamp = Date.now() + i; 
+        const baseFileName = `guest_${timestamp}`;
+        const originalExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+        const finalExt = file.type === 'video/webm' ? '.webm' : originalExtension;
+        const fullFileNameOriginal = `${baseFileName}${finalExt}`;
+
+        // --- PIPELINE A: DRIVE ARCHIVE ---
+        status.innerHTML = `<span class="text-warning">${currentProgressMsg} Backing up uncompressed master to Google Drive...</span>`;
+        try {
+            await fetch(GOOGLE_DRIVE_API_URL, {
+                method: "POST",
+                mode: "no-cors",
+                body: JSON.stringify({ base64Data: base64OriginalContent, mimeType: file.type, fileName: fullFileNameOriginal })
+            });
+        } catch (err) { console.error("Drive drop bypass:", err); }
+
+        // --- PIPELINE B: DISPATCH TO LIVE WALL ---
+        await processAndPushToGitHub(fileData, baseFileName, file.type, finalExt, base64OriginalContent, currentProgressMsg, status);
     }
+
+    status.innerHTML = `<span class="text-warning">🎉 Uploads received! Updating gallery wall layout...</span>`;
+    await loadGallery();
+
+    btn.innerHTML = "Upload";
+    btn.disabled = false;
+    status.innerHTML = `<span class="text-success">🎉 All ${totalFiles} items shared successfully!</span>`;
+    fileInput.value = '';
 }
 
 function processAndPushToGitHub(rawBase64, baseName, fileType, appliedExt, originalBase64, progressMsg, statusElement) {
@@ -287,18 +278,6 @@ function processAndPushToGitHub(rawBase64, baseName, fileType, appliedExt, origi
 
         scannerImg.src = rawBase64;
         scannerImg.onload = async function() {
-            statusElement.innerHTML = `<span class="text-warning">${progressMsg} Running real-time AI safety scans...</span>`;
-            if (!nsfwModel) nsfwModel = await nsfwjs.load();
-            const predictions = await nsfwModel.classify(scannerImg);
-            const pornScore = predictions.find(p => p.className === 'Porn').probability;
-            const sexyScore = predictions.find(p => p.className === 'Sexy').probability;
-
-            if (pornScore > 0.50 || sexyScore > 0.65) {
-                statusElement.innerHTML = `<span class="text-danger">⚠️ ${progressMsg} Skipped: Failed family-friendly filter.</span>`;
-                setTimeout(resolve, 2000); 
-                return;
-            }
-
             statusElement.innerHTML = `<span class="text-warning">${progressMsg} Scaling preview display ratios...</span>`;
             const compressedDataUrl = await compressImage(scannerImg);
             await pushToGitHub(`${baseName}.jpg`, compressedDataUrl.split(',')[1]);
