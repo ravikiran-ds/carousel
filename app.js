@@ -91,10 +91,17 @@ function trimVideo(file) {
 }
 
 // CHRONOLOGICAL MASONRY TIMELINE SYNC ENGINE
+// CHRONOLOGICAL MASONRY TIMELINE SYNC ENGINE (Fixed CORS Cache Block)
 async function loadGallery() {
     try {
-        const fetchHeaders = isLiveMode ? { headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Cache-Control': 'no-cache' } } : {};
-        const response = await fetch(apiUrl, fetchHeaders);
+        // Fix: Append a unique timestamp query parameter to bust the cache instead of using custom headers
+        const cacheBusterUrl = `${apiUrl}?t=${Date.now()}`;
+
+        const fetchHeaders = isLiveMode 
+            ? { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } } // Removed 'Cache-Control'
+            : {};
+
+        const response = await fetch(cacheBusterUrl, fetchHeaders);
         const files = await response.json();
         
         let images = files.filter(file => file.name.match(/\.(jpg|jpeg|png|gif|webp|webm|mp4)$/i));
