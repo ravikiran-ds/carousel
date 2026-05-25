@@ -248,6 +248,7 @@ function readFileAsDataURL(file) {
 
 // MASTER MULTI-FILE BATCH LOADING SPIN PIPELINE
 // MASTER MULTI-FILE BATCH LOADING PIPELINE (Compressed Previews Only)
+// MASTER MULTI-FILE PIPELINE (With Anti-Blocking Throttling Delay)
 async function uploadPhoto() {
     if (!isLiveMode) return;
     const fileInput = document.getElementById('photoInput');
@@ -265,30 +266,59 @@ async function uploadPhoto() {
         const currentProgressMsg = `[File ${i + 1} of ${totalFiles}]`;
         
         btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading (${i + 1}/${totalFiles})...`;
-        status.innerHTML = `<span class="text-warning">${currentProgressMsg} Processing file streams...</span>`;
+        status.innerHTML = `<span class="text-warning">${currentProgressMsg} Optimizing media...</span>`;
 
+        // 1. Handle Video Trimming smoothly
         if (file.type.startsWith('video/')) {
             status.innerHTML = `<span class="text-warning">${currentProgressMsg} Trimming video clip...</span>`;
             try { 
                 file = await trimVideo(file); 
+                const videoData = await readFileAsDataURL(file);
+                const base64Video = videoData.split(',')[1];
+                const timestamp = Date.now() + i;
+                await pushToGitHub(`gallery-assets/guest_${timestamp}.webm`, base64Video);
             } catch (err) {
-                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping corrupted video.</span>`;
-                continue; 
+                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping broken video container.</span>`;
             }
+            
+            // Anti-Abuse Tweak: Pause for 1.5 seconds before starting the next file block
+            if (i < totalFiles - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+            continue; 
         }
 
-        const fileData = await readFileAsDataURL(file);
-        const base64OriginalContent = fileData.split(',')[1];
-        const timestamp = Date.now() + i; 
-        const baseFileName = `guest_${timestamp}`;
-        const originalExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-        const finalExt = file.type === 'video/webm' ? '.webm' : originalExtension;
+        // 2. Handle Image Compression
+        try {
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Scaling image resolution...</span>`;
+            
+            const imgUrl = URL.createObjectURL(file);
+            const tempImg = new Image();
+            tempImg.src = imgUrl;
+            
+            await new Promise((resolve) => { tempImg.onload = resolve; });
+            const compressedDataUrl = await compressImage(tempImg);
+            URL.revokeObjectURL(imgUrl); 
+            
+            const base64ImageContent = compressedDataUrl.split(',')[1];
+            const timestamp = Date.now() + i;
+            
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Syncing with the wall...</span>`;
+            await pushToGitHub(`gallery-assets/guest_${timestamp}.jpg`, base64ImageContent);
+            
+        } catch (imageErr) {
+            console.error("Mobile compression halt:", imageErr);
+            status.innerHTML = `<span class="text-danger">${currentProgressMsg} Processing error.</span>`;
+        }
 
-        // Process, compress images, and push directly to your live wall branch
-        await processAndPushToGitHub(fileData, baseFileName, file.type, finalExt, base64OriginalContent, currentProgressMsg, status);
+        // ANTI-ABUSE RATE LIMIT BYPASS: Pause for exactly 1.5 seconds to bypass GitHub's server blocks
+        if (i < totalFiles - 1) {
+            status.innerHTML = `<span class="text-muted">${currentProgressMsg} Waiting for server cooldown...</span>`;
+            await new Promise(resolve => setTimeout(resolve, 1500));
+        }
     }
 
-    status.innerHTML = `<span class="text-warning">🎉 Uploads received! Updating gallery wall layout...</span>`;
+    status.innerHTML = `<span class="text-warning">🎉 Uploads received! Refreshing gallery...</span>`;
     await loadGallery();
 
     btn.innerHTML = "Upload";
