@@ -1,0 +1,17 @@
+{
+  "name": "Our Digital Wedding Wall",
+  "short_name": "WeddingWall",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0c0c0c",
+  "theme_color": "#0c0c0c",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3656/3656836.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
