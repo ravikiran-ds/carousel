@@ -6,7 +6,7 @@ const myBranch = "main";
 const tokenPart1 = "github_pat_11AOPNTWA0nAbSAp7nDRf4";
 const tokenPart2 = "_xlNhMDKmtit0dASoG0UXKDTLkbrlsxQ3GboNwoUe1snCTT63WROCAAd6H6n";
 
-// PASTE YOUR DEPLOYED GOOGLE APPS SCRIPT WEB APP URL HERE:
+// DEPLOYED GOOGLE APPS SCRIPT WEB APP URL
 const GOOGLE_DRIVE_API_URL = "https://script.google.com/macros/s/AKfycbylQuQw2waiFTTCfcNE0QDk4-UvPrDT3JsB4UisxSiY-o60j8K6K99SuPKjen73CGBV/exec";
 // =======================================================
 
@@ -19,7 +19,7 @@ let nsfwModel = null;
 // Autoscroll tracking variables
 let autoscrollInterval = null;
 let userInteractingTimeout = null;
-const SCROLL_SPEED = 1; // Pixels per frame (Increase for faster scroll, decrease for slower)
+const SCROLL_SPEED = 1; // Pixels per frame (1 = smooth slow, 2 = faster)
 
 const isLiveMode = GITHUB_TOKEN.trim() !== "" && !GITHUB_TOKEN.includes("FIRST_HALF_OF_YOUR_TOKEN");
 
@@ -41,51 +41,54 @@ async function initializeSystem() {
     await loadGallery();
     
     const splash = document.getElementById('splashScreen');
-    splash.style.opacity = '0';
-    setTimeout(() => {
-        splash.remove();
-        startAutoscroll(); // Kick off autoscroll once splash is clear
-        setupInteractionListeners(); // Listen for user overrides
-    }, 400);
+    if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(() => {
+            splash.remove();
+            setupInteractionListeners(); // Listen for user overrides
+        }, 400);
+    }
 }
 
 function updateSplashStatus(msg) {
-    document.getElementById('splashStatus').innerText = msg;
+    const statusEl = document.getElementById('splashStatus');
+    if (statusEl) statusEl.innerText = msg;
 }
 
 function renderGlowSkeletons() {
     const grid = document.getElementById('photoGrid');
-    grid.innerHTML = Array(6).fill('<div class="grid-item skeleton-placeholder"></div>').join('');
+    if (grid) grid.innerHTML = Array(6).fill('<div class="grid-item skeleton-placeholder"></div>').join('');
 }
 
-// Pre-load the NSFW filter model immediately
 async function loadFilterModel() {
     try {
-        nsfwModel = await nsfwjs.load('https://nsfwjs.com/model/', { size: 299 });
-        console.log("NSFW Filter online.");
+        if (typeof nsfwjs !== 'undefined') {
+            nsfwModel = await nsfwjs.load();
+            console.log("NSFW Filter online.");
+        }
     } catch (err) {
         console.error("AI filter failed to load:", err);
     }
 }
 
-// INFINITE AUTOSCROLL ENGINE (Mathematical Height Bug Fixed)
+// BULLETPROOF INFINITE AUTOSCROLL ENGINE (Timing & Height Insensitive)
 function startAutoscroll() {
-    if (autoscrollInterval) return; 
-
-    // Target the absolute scrolling container directly
+    if (autoscrollInterval) return; // Prevent duplicate loops
+    
     const scrollContainer = document.scrollingElement || document.documentElement || document.body;
     
     autoscrollInterval = setInterval(() => {
         const previousScrollY = scrollContainer.scrollTop;
         
-        // Push the element down directly by your SCROLL_SPEED pixel step
+        // Advance down smoothly
         scrollContainer.scrollTop += SCROLL_SPEED;
         
-        // LOOP CONDITION: If the position did not advance, we hit the absolute bottom wall
-        if (scrollContainer.scrollTop === previousScrollY && scrollContainer.scrollTop > 0) {
+        // LOOP CONDITION: If the window position stalls, or if it physically reaches 
+        // the bottom layout wall, loop instantly back to the top of the wedding wall.
+        if (scrollContainer.scrollTop === previousScrollY && previousScrollY > 0) {
             scrollContainer.scrollTo({ top: 0, behavior: 'instant' });
         }
-    }, 30); 
+    }, 30); // ~33fps for screen fluidity
 }
 
 function stopAutoscroll() {
@@ -93,14 +96,12 @@ function stopAutoscroll() {
     autoscrollInterval = null;
 }
 
-// Safety Pause: Pauses auto-scroll if a guest interacts with the screen
 function handleUserInteraction() {
     stopAutoscroll();
     clearTimeout(userInteractingTimeout);
     
-    // Resumes automated scroll after 10 seconds of zero activity
+    // Resumes automated scroll after 10 seconds of complete idle state
     userInteractingTimeout = setTimeout(() => {
-        // Only resume if lightbox isn't currently blocking the view
         if (document.getElementById('lightbox').style.display !== 'block') {
             startAutoscroll();
         }
@@ -108,12 +109,8 @@ function handleUserInteraction() {
 }
 
 function setupInteractionListeners() {
-    // Listen to scroll, wheel, and touch movements across mobile/desktop
     window.addEventListener('scroll', () => {
-        // Filter out structural jumps driven by our own script logic
         if (autoscrollInterval === null && userInteractingTimeout === null) return; 
-        
-        // If scroll variance didn't match native speed step, it's a human hand swipe
         handleUserInteraction();
     }, { passive: true });
     
@@ -121,11 +118,10 @@ function setupInteractionListeners() {
     window.addEventListener('wheel', handleUserInteraction, { passive: true });
 }
 
-// HIGH-SPEED MOBILE COMPRESSION ENGINE (Hardware Accelerated)
 function compressImage(imgElement) {
     return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
+        const ctx = canvas.getContext('2d', { alpha: false });
 
         const MAX_BOUNDS = 1200; 
         let width = imgElement.naturalWidth || imgElement.width;
@@ -139,15 +135,11 @@ function compressImage(imgElement) {
 
         canvas.width = width;
         canvas.height = height;
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'low'; 
-
         ctx.drawImage(imgElement, 0, 0, width, height);
         resolve(canvas.toDataURL('image/jpeg', 0.70));
     });
 }
 
-// 30-SECOND VIDEO TRIMMING + 1080p CAPTURE ENGINE
 function trimAndResizeVideo(file) {
     return new Promise((resolve, reject) => {
         const video = document.createElement('video');
@@ -171,7 +163,6 @@ function trimAndResizeVideo(file) {
             
             canvas.width = width;
             canvas.height = height;
-            
             video.play();
             
             const canvasStream = canvas.captureStream ? canvas.captureStream(30) : canvas.mozCaptureStream(30);
@@ -184,26 +175,19 @@ function trimAndResizeVideo(file) {
             }
             updateCanvasFrame();
 
-            let selectedMimeType = 'video/mp4;codecs=avc1.42E01E,mp4a.40.2';
-            if (!MediaRecorder.isTypeSupported(selectedMimeType)) {
-                selectedMimeType = 'video/webm;codecs=vp8,opus';
-            }
-
+            let selectedMimeType = 'video/webm;codecs=vp8,opus';
             const chunks = [];
             const mediaRecorder = new MediaRecorder(canvasStream, { mimeType: selectedMimeType });
 
             mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
             mediaRecorder.onstop = () => {
-                const fileExt = selectedMimeType.includes('mp4') ? '.mp4' : '.webm';
-                const trimmedBlob = new Blob(chunks, { type: fileExt === '.mp4' ? 'video/mp4' : 'video/webm' });
-                
-                resolve(new File([trimmedBlob], `trimmed_${Date.now()}${fileExt}`, { type: trimmedBlob.type }));
+                const trimmedBlob = new Blob(chunks, { type: 'video/webm' });
+                resolve(new File([trimmedBlob], `trimmed_${Date.now()}.webm`, { type: 'video/webm' }));
                 video.pause(); 
                 URL.revokeObjectURL(video.src);
             };
 
             mediaRecorder.start();
-            
             const durationLimit = Math.min(video.duration, 30) * 1000;
             setTimeout(() => { if (mediaRecorder.state !== "inactive") mediaRecorder.stop(); }, durationLimit);
         };
@@ -220,6 +204,7 @@ async function loadGallery() {
         const response = await fetch(cleanFetchUrl, fetchHeaders);
         const files = await response.json();
         
+        if (!Array.isArray(files)) return;
         let images = files.filter(file => file.name.match(/\.(jpg|jpeg|png|gif|webp|webm|mp4)$/i));
         
         images.sort((a, b) => {
@@ -228,7 +213,16 @@ async function loadGallery() {
             return timeA - timeB;
         });
 
-        if (images.length === activeImagesArray.length) return;
+        if (images.length === activeImagesArray.length) {
+            // Safety measure: If loop dropped out, reactivate scrolling engine
+            if (!autoscrollInterval && document.getElementById('lightbox').style.display !== 'block') {
+                startAutoscroll();
+            }
+            return;
+        }
+        
+        // If data changes, halt current scroll parameters to clean layout safely
+        stopAutoscroll();
         activeImagesArray = images;
 
         const grid = document.getElementById('photoGrid');
@@ -239,24 +233,59 @@ async function loadGallery() {
             return;
         }
 
+        let loadedCount = 0;
+        const totalImages = images.length;
+
+        // Callback tracker ensuring autoscroll kicks off only after content is rendered on screen
+        function itemLoadedCallback() {
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                // All items have rendered and populated page height. Start scrolling!
+                setTimeout(startAutoscroll, 500);
+            }
+        }
+
         images.forEach((img, index) => {
             const card = document.createElement('div');
             card.className = 'grid-item';
             card.onclick = () => openLightbox(index);
             
             if (img.name.endsWith('.webm') || img.name.endsWith('.mp4')) {
-                card.innerHTML = `<video src="${img.download_url}" autoplay loop playsinline muted loading="lazy"></video>`;
+                const videoEl = document.createElement('video');
+                videoEl.src = img.download_url;
+                videoEl.autoplay = true;
+                videoEl.loop = true;
+                videoEl.playsInline = true;
+                videoEl.muted = true;
+                videoEl.setAttribute('loading', 'lazy');
+                
+                // Track when video metadata fixes heights
+                videoEl.onloadeddata = itemLoadedCallback;
+                videoEl.onerror = itemLoadedCallback; // Fallback bound prevent stalling
+                
+                card.appendChild(videoEl);
             } else {
-                card.innerHTML = `<img src="${img.download_url}" loading="lazy" alt="Asset">`;
+                const imageEl = document.createElement('img');
+                imageEl.src = img.download_url;
+                imageEl.setAttribute('loading', 'lazy');
+                
+                // Track image render state bounds
+                imageEl.onload = itemLoadedCallback;
+                imageEl.onerror = itemLoadedCallback;
+                
+                card.appendChild(imageEl);
             }
             grid.appendChild(card);
         });
-    } catch (err) { console.error("Gallery frame sync error:", err); }
+    } catch (err) { 
+        console.error("Gallery frame sync error:", err); 
+        // Force recovery starter if data stream blocks loops
+        setTimeout(startAutoscroll, 2000);
+    }
 }
 
-// LIGHTBOX MEDIA VIEWER
 function openLightbox(index) {
-    stopAutoscroll(); // Freeze scanning when modal explicitly views an element
+    stopAutoscroll(); 
     clearTimeout(userInteractingTimeout);
 
     currentLightboxIndex = index;
@@ -275,13 +304,10 @@ function openLightbox(index) {
     document.body.style.overflow = 'hidden'; 
 }
 
-// CLOSING LIGHTBOX VIEWER
 function closeLightbox(event) {
     if (event.target.id === 'lightbox' || event.target.className === 'close-btn' || event.target.classList.contains('lightbox-content-wrapper')) {
         document.getElementById('lightbox').style.display = 'none';
         document.body.style.overflow = 'auto'; 
-        
-        // Safety call interaction fallback structure loop reset triggers
         handleUserInteraction();
     }
 }
@@ -294,7 +320,6 @@ function changeImage(direction, event) {
     openLightbox(currentLightboxIndex);
 }
 
-// NATIVE MOBILE BROWSERS SHARE PIPELINE
 async function shareActiveImage(event) {
     if (event) event.stopPropagation();
     const currentImgUrl = activeImagesArray[currentLightboxIndex].download_url;
@@ -309,7 +334,6 @@ async function shareActiveImage(event) {
     }
 }
 
-// Keyboard controls mapping
 document.addEventListener('keydown', (e) => {
     if (document.getElementById('lightbox').style.display === 'block') {
         if (e.key === 'ArrowRight') changeImage(1);
@@ -322,7 +346,6 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Mobile Horizontal Tap Interface Swaps
 document.getElementById('lightbox').addEventListener('click', (e) => {
     if (e.target.id === 'lightboxImg' && e.target.tagName !== 'VIDEO') {
         const clickX = e.clientX; const screenWidth = window.innerWidth;
@@ -331,12 +354,19 @@ document.getElementById('lightbox').addEventListener('click', (e) => {
     }
 });
 
-function readFileAsDataURL(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
+function uploadToGoogleDrivePlainForm(base64Content, fileMimeType, fullTargetName) {
+    return new Promise((resolve) => {
+        fetch(GOOGLE_DRIVE_API_URL, {
+            method: "POST",
+            mode: "no-cors", 
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ base64Data: base64Content, mimeType: fileMimeType, fileName: fullTargetName })
+        })
+        .then(() => resolve())
+        .catch((err) => {
+            console.warn("Drive stream background trace log warning:", err);
+            resolve();
+        });
     });
 }
 
@@ -354,7 +384,6 @@ async function uploadPhoto() {
     btn.disabled = true;
     const totalFiles = filesList.length;
 
-    // Halt scroll mechanics while user uploads a batch
     stopAutoscroll();
     clearTimeout(userInteractingTimeout);
 
@@ -365,19 +394,6 @@ async function uploadPhoto() {
         btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading (${i + 1}/${totalFiles})...`;
         status.innerHTML = `<span class="text-warning">${currentProgressMsg} Reading media files...</span>`;
 
-        if (file.name.match(/\.(heic|heif)$/i) || file.type === "image/heic" || file.type === "image/heif") {
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Converting Apple HEIC to standard JPEG...</span>`;
-            try {
-                const conversionResult = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.70 });
-                const processedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
-                file = new File([processedBlob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
-            } catch (heicErr) {
-                console.error("HEIC parsing error:", heicErr);
-                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Conversion failed for Apple format.</span>`;
-                continue;
-            }
-        }
-
         const timestamp = Date.now() + i;
         const baseFileName = `guest_${timestamp}`;
         const originalExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
@@ -385,43 +401,32 @@ async function uploadPhoto() {
         const rawOriginalDataUrl = await readFileAsDataURL(file);
         const base64OriginalContent = rawOriginalDataUrl.split(',')[1];
 
-        // Pipeline A: Google Drive original quality stream drop context
-        if (GOOGLE_DRIVE_API_URL && GOOGLE_DRIVE_API_URL !== "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE") {
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Storing original quality backup in Google Drive...</span>`;
-            try {
-                await fetch(GOOGLE_DRIVE_API_URL, {
-                    method: "POST",
-                    mode: "no-cors",
-                    body: JSON.stringify({ base64Data: base64OriginalContent, mimeType: file.type, fileName: `${baseFileName}${originalExtension}` })
-                });
-            } catch (driveErr) {
-                console.error("Drive upload link skipped:", driveErr);
-            }
+        // Pipeline A: Google Drive submission
+        if (GOOGLE_DRIVE_API_URL) {
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Transmitting backup package to Google Drive...</span>`;
+            await uploadToGoogleDrivePlainForm(base64OriginalContent, file.type, `${baseFileName}${originalExtension}`);
         }
 
-        // Pipeline B: GitHub screen preview compilation logic paths
+        // Pipeline B: GitHub pipeline rules logic path 
         if (file.type.startsWith('video/')) {
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Processing video metrics (Max 30s @ 1080p)...</span>`;
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Processing video layers (Max 30s @ 1080p)...</span>`;
             try { 
                 const trimmedFile = await trimAndResizeVideo(file); 
                 const videoData = await readFileAsDataURL(trimmedFile);
                 const base64Video = videoData.split(',')[1];
-                const fileExt = trimmedFile.name.endsWith('.mp4') ? '.mp4' : '.webm';
                 
-                status.innerHTML = `<span class="text-warning">${currentProgressMsg} Syncing video frame loops with the wall...</span>`;
-                await pushToGitHub(`${baseFileName}${fileExt}`, base64Video);
+                status.innerHTML = `<span class="text-warning">${currentProgressMsg} Rendering video on screen...</span>`;
+                await pushToGitHub(`${baseFileName}.webm`, base64Video);
             } catch (err) {
-                console.error("Video normalization fault:", err);
-                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping broken video container.</span>`;
+                console.error("Video processing failure:", err);
+                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping video file.</span>`;
             }
-            
-            if (i < totalFiles - 1) await new Promise(resolve => setTimeout(resolve, 1500));
             continue; 
         }
 
         try {
             if (nsfwModel) {
-                status.innerHTML = `<span class="text-warning">${currentProgressMsg} Analyzing content classification...</span>`;
+                status.innerHTML = `<span class="text-warning">${currentProgressMsg} Processing content safety scan...</span>`;
                 scannerImg.src = rawOriginalDataUrl;
                 await new Promise((resolve) => { scannerImg.onload = resolve; });
                 
@@ -430,13 +435,13 @@ async function uploadPhoto() {
                 const sexyScore = predictions.find(p => p.className === 'Sexy').probability;
 
                 if (pornScore > 0.50 || sexyScore > 0.65) {
-                    status.innerHTML = `<span class="text-danger">⚠️ ${currentProgressMsg} Skipped: Content failed event safety rules.</span>`;
-                    if (i < totalFiles - 1) await new Promise(resolve => setTimeout(resolve, 2000));
+                    status.innerHTML = `<span class="text-danger">⚠️ ${currentProgressMsg} Skipped: Failed safety regulations.</span>`;
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                     continue;
                 }
             }
 
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Compressing preview for live display...</span>`;
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Optimizing file space compression metrics...</span>`;
             const tempImg = new Image();
             tempImg.src = rawOriginalDataUrl;
             await new Promise((resolve) => { tempImg.onload = resolve; });
@@ -444,21 +449,16 @@ async function uploadPhoto() {
             const compressedDataUrl = await compressImage(tempImg);
             const base64ImageContent = compressedDataUrl.split(',')[1];
             
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Publishing image to live screen...</span>`;
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Uploading to live wall screen...</span>`;
             await pushToGitHub(`${baseFileName}.jpg`, base64ImageContent);
             
         } catch (imageErr) {
-            console.error("Image optimization halt:", imageErr);
+            console.error("Image loop failure:", imageErr);
             status.innerHTML = `<span class="text-danger">${currentProgressMsg} Processing error.</span>`;
-        }
-
-        if (i < totalFiles - 1) {
-            status.innerHTML = `<span class="text-muted">${currentProgressMsg} Cool-down delay...</span>`;
-            await new Promise(resolve => setTimeout(resolve, 1500));
         }
     }
 
-    status.innerHTML = `<span class="text-warning">🎉 Uploads received! Refreshing gallery...</span>`;
+    status.innerHTML = `<span class="text-warning">🎉 Uploads completed! Refreshing framework columns...</span>`;
     await loadGallery();
 
     btn.innerHTML = "Upload";
@@ -466,9 +466,8 @@ async function uploadPhoto() {
     status.innerHTML = `<span class="text-success">🎉 All ${totalFiles} items shared successfully!</span>`;
     fileInput.value = '';
     
-    // Safely restart autoscroll loop after uploads finish processing
     handleUserInteraction();
-} // Fixed closing bracket isolated from surrounding functions!
+}
 
 async function pushToGitHub(fileName, base64DataString) {
     const uploadUrl = apiUrl + fileName;
@@ -485,9 +484,8 @@ async function pushToGitHub(fileName, base64DataString) {
             body: JSON.stringify(commitData)
         });
     } catch (err) { 
-        console.error("Live sync interruption:", err); 
+        console.error("Live sync failure:", err); 
     }
 }
 
-// Initialize presentation routing loop
 initializeSystem();
