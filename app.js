@@ -25,6 +25,9 @@ async function initializeSystem() {
         document.getElementById('uploadBar').classList.remove('d-none');
         document.body.classList.add('has-upload-bar');
         
+        // Listen for selection changes to run real-time file quantity checks
+        setupFileInputListener();
+        
         // Sync gallery snapshots every 15 seconds
         setInterval(loadGallery, 15000); 
     }
@@ -47,6 +50,28 @@ function updateSplashStatus(msg) {
 function renderGlowSkeletons() {
     const grid = document.getElementById('photoGrid');
     if (grid) grid.innerHTML = Array(6).fill('<div class="grid-item skeleton-placeholder"></div>').join('');
+}
+
+// REAL-TIME GALLERY SELECTION INPUT MONITOR
+function setupFileInputListener() {
+    const fileInput = document.getElementById('photoInput');
+    const status = document.getElementById('uploadStatus');
+    const btn = document.getElementById('uploadBtn');
+
+    if (!fileInput) return;
+
+    fileInput.addEventListener('change', () => {
+        const totalFiles = fileInput.files.length;
+
+        if (totalFiles > 20) {
+            btn.disabled = true;
+            status.innerHTML = `<span class="text-danger fw-bold">⚠️ Maximum of 20 photos/videos allowed per upload batch. Please reduce selection.</span>`;
+        } else {
+            // Re-enable if they fix their file choices down to a safe range
+            btn.disabled = false;
+            status.innerHTML = totalFiles > 0 ? `<span class="text-success">${totalFiles} items selected and ready.</span>` : '';
+        }
+    });
 }
 
 // HIGH-SPEED MOBILE COMPRESSION ENGINE (Hardware Accelerated)
@@ -338,7 +363,7 @@ async function processSingleFile(file, index, totalFiles, updateProgressUI) {
     }
 }
 
-// CONCURRENT POOL LIMIT QUEUE CONTROLLER (Handles batches safely)
+// CONCURRENT POOL LIMIT QUEUE CONTROLLER
 async function processWithConcurrencyLimit(poolLimit, files, updateProgressUI) {
     const results = [];
     const executing = [];
@@ -346,7 +371,6 @@ async function processWithConcurrencyLimit(poolLimit, files, updateProgressUI) {
 
     for (const file of files) {
         const currentIndex = fileIndex++;
-        // Kicks off the process worker execution line asynchronously
         const p = processSingleFile(file, currentIndex, files.length, updateProgressUI)
             .then(result => {
                 results[currentIndex] = result;
@@ -355,12 +379,11 @@ async function processWithConcurrencyLimit(poolLimit, files, updateProgressUI) {
 
         results.push(p);
 
-        // Enforce pool maximum boundaries constraints
         if (poolLimit <= files.length) {
             const e = p.then(() => executing.splice(executing.indexOf(e), 1));
             executing.push(e);
             if (executing.length >= poolLimit) {
-                await Promise.race(executing); // Wait for at least one thread slot to open up
+                await Promise.race(executing); 
             }
         }
     }
@@ -375,12 +398,18 @@ async function uploadPhoto() {
     const btn = document.getElementById('uploadBtn');
     
     const filesList = Array.from(fileInput.files);
+    
+    // Hard ceiling catch gate as a secondary protection layer
+    if (filesList.length > 20) {
+        btn.disabled = true;
+        status.innerHTML = `<span class="text-danger fw-bold">⚠️ Maximum of 20 photos/videos allowed per upload batch. Please reduce selection.</span>`;
+        return;
+    }
     if (filesList.length === 0) { status.innerText = "Please select files first."; return; }
     
     btn.disabled = true;
     const totalFiles = filesList.length;
 
-    // Build tracking indices array references for progress logs UI
     const fileStatuses = filesList.map((f, i) => `File ${i + 1}: Pending...`);
     
     const updateProgressUI = (index, subMessage) => {
@@ -389,11 +418,9 @@ async function uploadPhoto() {
         btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading ${filesList.filter((f, idx) => fileStatuses[idx].includes('Done')).length}/${totalFiles}...`;
     };
 
-    // Initialize UI Layout Tracker State out of the gate
     btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Initializing parallel queue...`;
     status.innerHTML = "Deploying processing worker threads...";
 
-    // Run parallel queue processor with a max safe throttle limit of 3 concurrent uploads
     await processWithConcurrencyLimit(3, filesList, updateProgressUI);
 
     status.innerHTML = `<span class="text-warning">🎉 All payloads transmitted! Refreshing main wall view layout columns...</span>`;
