@@ -25,6 +25,9 @@ async function initializeSystem() {
         document.getElementById('uploadBar').classList.remove('d-none');
         document.body.classList.add('has-upload-bar');
         
+        // Listen for selection changes to run real-time file quantity checks
+        setupFileInputListener();
+        
         // Sync gallery snapshots every 15 seconds
         setInterval(loadGallery, 15000); 
     }
@@ -47,6 +50,28 @@ function updateSplashStatus(msg) {
 function renderGlowSkeletons() {
     const grid = document.getElementById('photoGrid');
     if (grid) grid.innerHTML = Array(6).fill('<div class="grid-item skeleton-placeholder"></div>').join('');
+}
+
+// REAL-TIME GALLERY SELECTION INPUT MONITOR
+function setupFileInputListener() {
+    const fileInput = document.getElementById('photoInput');
+    const status = document.getElementById('uploadStatus');
+    const btn = document.getElementById('uploadBtn');
+
+    if (!fileInput) return;
+
+    fileInput.addEventListener('change', () => {
+        const totalFiles = fileInput.files.length;
+
+        if (totalFiles > 20) {
+            btn.disabled = true;
+            status.innerHTML = `<span class="text-danger fw-bold">⚠️ Maximum of 20 photos/videos allowed per upload batch. Please reduce selection.</span>`;
+        } else {
+            // Re-enable if they fix their file choices down to a safe range
+            btn.disabled = false;
+            status.innerHTML = totalFiles > 0 ? `<span class="text-success">${totalFiles} items selected and ready.</span>` : '';
+        }
+    });
 }
 
 // HIGH-SPEED MOBILE COMPRESSION ENGINE (Hardware Accelerated)
@@ -276,71 +301,47 @@ function readFileAsDataURL(file) {
     });
 }
 
-// MASTER QUEUE UPLOAD WITH PARALLEL GOOGLE DRIVE LOGIC
-async function uploadPhoto() {
-    if (!isLiveMode) return;
-    const fileInput = document.getElementById('photoInput');
-    const status = document.getElementById('uploadStatus');
-    const btn = document.getElementById('uploadBtn');
-    
-    const filesList = fileInput.files;
-    if (filesList.length === 0) { status.innerText = "Please select files first."; return; }
-    
-    btn.disabled = true;
-    const totalFiles = filesList.length;
+// HIGH-PERFORMANCE SINGLE FILE PROCESSOR WORKER
+async function processSingleFile(file, index, totalFiles, updateProgressUI) {
+    try {
+        updateProgressUI(index, `Processing layout...`);
 
-    for (let i = 0; i < totalFiles; i++) {
-        let file = filesList[i];
-        const currentProgressMsg = `[File ${i + 1} of ${totalFiles}]`;
-        
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading (${i + 1}/${totalFiles})...`;
-        status.innerHTML = `<span class="text-warning">${currentProgressMsg} Reading media files...</span>`;
-
+        // Convert Apple HEIC to standard JPEG immediately if needed
         if (file.name.match(/\.(heic|heif)$/i) || file.type === "image/heic" || file.type === "image/heif") {
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Converting Apple HEIC to standard JPEG...</span>`;
             try {
                 const conversionResult = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.70 });
                 const processedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
                 file = new File([processedBlob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
             } catch (heicErr) {
                 console.error("HEIC parsing error:", heicErr);
-                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Conversion failed for Apple format.</span>`;
-                continue;
+                return { status: "error", name: file.name };
             }
         }
 
-        const timestamp = Date.now() + i;
+        const timestamp = Date.now() + index; 
         const baseFileName = `guest_${timestamp}`;
         const originalExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
 
         const rawOriginalDataUrl = await readFileAsDataURL(file);
         const base64OriginalContent = rawOriginalDataUrl.split(',')[1];
 
-        // Pipeline A: Google Drive submission
+        // Pipeline A: Google Drive Concurrent Stream Drop
         if (GOOGLE_DRIVE_API_URL) {
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Transmitting backup package to Google Drive...</span>`;
+            updateProgressUI(index, `Backing up to Drive...`);
             await uploadToGoogleDrivePlainForm(base64OriginalContent, file.type, `${baseFileName}${originalExtension}`);
         }
 
-        // Pipeline B: GitHub pipeline rules logic path 
+        // Pipeline B: Video vs Image routing parameters
         if (file.type.startsWith('video/')) {
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Processing video layers (Max 30s @ 1080p)...</span>`;
-            try { 
-                const trimmedFile = await trimAndResizeVideo(file); 
-                const videoData = await readFileAsDataURL(trimmedFile);
-                const base64Video = videoData.split(',')[1];
-                
-                status.innerHTML = `<span class="text-warning">${currentProgressMsg} Rendering video on screen...</span>`;
-                await pushToGitHub(`${baseFileName}.webm`, base64Video);
-            } catch (err) {
-                console.error("Video processing failure:", err);
-                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Skipping video file.</span>`;
-            }
-            continue; 
-        }
-
-        try {
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Optimizing file space compression metrics...</span>`;
+            updateProgressUI(index, `Trimming video...`);
+            const trimmedFile = await trimAndResizeVideo(file); 
+            const videoData = await readFileAsDataURL(trimmedFile);
+            const base64Video = videoData.split(',')[1];
+            
+            updateProgressUI(index, `Publishing video...`);
+            await pushToGitHub(`${baseFileName}.webm`, base64Video);
+        } else {
+            updateProgressUI(index, `Compressing image...`);
             const tempImg = new Image();
             tempImg.src = rawOriginalDataUrl;
             await new Promise((resolve) => { tempImg.onload = resolve; });
@@ -348,21 +349,86 @@ async function uploadPhoto() {
             const compressedDataUrl = await compressImage(tempImg);
             const base64ImageContent = compressedDataUrl.split(',')[1];
             
-            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Uploading to live wall screen...</span>`;
+            updateProgressUI(index, `Publishing image...`);
             await pushToGitHub(`${baseFileName}.jpg`, base64ImageContent);
-            
-        } catch (imageErr) {
-            console.error("Image loop failure:", imageErr);
-            status.innerHTML = `<span class="text-danger">${currentProgressMsg} Processing error.</span>`;
+        }
+
+        updateProgressUI(index, `🟢 Done!`);
+        return { status: "success", name: file.name };
+
+    } catch (err) {
+        console.error(`Error processing file ${file.name}:`, err);
+        updateProgressUI(index, `🔴 Failed`);
+        return { status: "error", name: file.name };
+    }
+}
+
+// CONCURRENT POOL LIMIT QUEUE CONTROLLER
+async function processWithConcurrencyLimit(poolLimit, files, updateProgressUI) {
+    const results = [];
+    const executing = [];
+    let fileIndex = 0;
+
+    for (const file of files) {
+        const currentIndex = fileIndex++;
+        const p = processSingleFile(file, currentIndex, files.length, updateProgressUI)
+            .then(result => {
+                results[currentIndex] = result;
+                return result;
+            });
+
+        results.push(p);
+
+        if (poolLimit <= files.length) {
+            const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+            executing.push(e);
+            if (executing.length >= poolLimit) {
+                await Promise.race(executing); 
+            }
         }
     }
+    return Promise.all(results);
+}
 
-    status.innerHTML = `<span class="text-warning">🎉 Uploads completed! Refreshing framework columns...</span>`;
+// MASTER CONCURRENT BATCH UPLOAD ENTRANCE
+async function uploadPhoto() {
+    if (!isLiveMode) return;
+    const fileInput = document.getElementById('photoInput');
+    const status = document.getElementById('uploadStatus');
+    const btn = document.getElementById('uploadBtn');
+    
+    const filesList = Array.from(fileInput.files);
+    
+    // Hard ceiling catch gate as a secondary protection layer
+    if (filesList.length > 20) {
+        btn.disabled = true;
+        status.innerHTML = `<span class="text-danger fw-bold">⚠️ Maximum of 20 photos/videos allowed per upload batch. Please reduce selection.</span>`;
+        return;
+    }
+    if (filesList.length === 0) { status.innerText = "Please select files first."; return; }
+    
+    btn.disabled = true;
+    const totalFiles = filesList.length;
+
+    const fileStatuses = filesList.map((f, i) => `File ${i + 1}: Pending...`);
+    
+    const updateProgressUI = (index, subMessage) => {
+        fileStatuses[index] = `File ${index + 1} (${filesList[index].name.substring(0, 10)}...): ${subMessage}`;
+        status.innerHTML = `<div class="text-start mt-2 small text-warning" style="max-height: 120px; overflow-y: auto;">${fileStatuses.join('<br>')}</div>`;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading ${filesList.filter((f, idx) => fileStatuses[idx].includes('Done')).length}/${totalFiles}...`;
+    };
+
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Initializing parallel queue...`;
+    status.innerHTML = "Deploying processing worker threads...";
+
+    await processWithConcurrencyLimit(3, filesList, updateProgressUI);
+
+    status.innerHTML = `<span class="text-warning">🎉 All payloads transmitted! Refreshing main wall view layout columns...</span>`;
     await loadGallery();
 
     btn.innerHTML = "Upload";
     btn.disabled = false;
-    status.innerHTML = `<span class="text-success">🎉 All ${totalFiles} items shared successfully!</span>`;
+    status.innerHTML = `<span class="text-success">🎉 All ${totalFiles} items shared simultaneously!</span>`;
     fileInput.value = '';
 }
 
@@ -370,7 +436,7 @@ async function pushToGitHub(fileName, base64DataString) {
     const uploadUrl = apiUrl + fileName;
     try {
         const commitData = { 
-            message: `App upload: ${fileName}`, 
+            message: `App concurrent upload: ${fileName}`, 
             content: base64DataString,
             branch: myBranch 
         };
@@ -385,5 +451,4 @@ async function pushToGitHub(fileName, base64DataString) {
     }
 }
 
-// Initialize system routing loops
 initializeSystem();
