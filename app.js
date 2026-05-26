@@ -465,7 +465,7 @@ async function uploadPhoto() {
     
     // Safely restart autoscroll loop after uploads finish processing
     handleUserInteraction();
-}
+} // <-- THIS WAS THE CRITICAL MISSING CLOSING BRACKET THAT FIXED IT!
 
 async function pushToGitHub(fileName, base64DataString) {
     const uploadUrl = apiUrl + fileName;
