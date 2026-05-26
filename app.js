@@ -70,20 +70,22 @@ async function loadFilterModel() {
 
 // INFINITE AUTOSCROLL ENGINE (Mathematical Height Bug Fixed)
 function startAutoscroll() {
-    if (autoscrollInterval) return; // Prevent duplicate triggers
+    if (autoscrollInterval) return; 
+
+    // Target the absolute scrolling container directly
+    const scrollContainer = document.scrollingElement || document.documentElement || document.body;
     
     autoscrollInterval = setInterval(() => {
-        const previousScrollY = window.scrollY;
+        const previousScrollY = scrollContainer.scrollTop;
         
-        // Progress down smoothly by step speed pixels
-        window.scrollBy(0, SCROLL_SPEED);
+        // Push the element down directly by your SCROLL_SPEED pixel step
+        scrollContainer.scrollTop += SCROLL_SPEED;
         
-        // LOOP CONDITION: If window.scrollY didn't increase after scrollBy, 
-        // it means the browser physically hit the absolute pixel bottom of the page.
-        if (window.scrollY === previousScrollY && window.scrollY > 0) {
-            window.scrollTo({ top: 0, behavior: 'instant' });
+        // LOOP CONDITION: If the position did not advance, we hit the absolute bottom wall
+        if (scrollContainer.scrollTop === previousScrollY && scrollContainer.scrollTop > 0) {
+            scrollContainer.scrollTo({ top: 0, behavior: 'instant' });
         }
-    }, 30); // ~33 frames per second for liquid smooth rendering
+    }, 30); 
 }
 
 function stopAutoscroll() {
