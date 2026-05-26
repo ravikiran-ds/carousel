@@ -68,7 +68,7 @@ async function loadFilterModel() {
     }
 }
 
-// INFINITE AUTOSCROLL ENGINE
+// INFINITE AUTOSCROLL ENGINE (Mathematical Height Bug Fixed)
 function startAutoscroll() {
     if (autoscrollInterval) return; // Prevent duplicate triggers
     
@@ -273,6 +273,7 @@ function openLightbox(index) {
     document.body.style.overflow = 'hidden'; 
 }
 
+// CLOSING LIGHTBOX VIEWER
 function closeLightbox(event) {
     if (event.target.id === 'lightbox' || event.target.className === 'close-btn' || event.target.classList.contains('lightbox-content-wrapper')) {
         document.getElementById('lightbox').style.display = 'none';
@@ -465,7 +466,7 @@ async function uploadPhoto() {
     
     // Safely restart autoscroll loop after uploads finish processing
     handleUserInteraction();
-} // <-- THIS WAS THE CRITICAL MISSING CLOSING BRACKET THAT FIXED IT!
+} // Fixed closing bracket isolated from surrounding functions!
 
 async function pushToGitHub(fileName, base64DataString) {
     const uploadUrl = apiUrl + fileName;
@@ -486,4 +487,5 @@ async function pushToGitHub(fileName, base64DataString) {
     }
 }
 
+// Initialize presentation routing loop
 initializeSystem();
