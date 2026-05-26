@@ -70,20 +70,20 @@ async function loadFilterModel() {
 
 // INFINITE AUTOSCROLL ENGINE
 function startAutoscroll() {
-    if (autoscrollInterval) return; // Prevent double triggers
+    if (autoscrollInterval) return; // Prevent duplicate triggers
     
     autoscrollInterval = setInterval(() => {
-        const currentScroll = window.scrollY;
-        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+        const previousScrollY = window.scrollY;
         
-        // Loop Condition: If we hit the absolute bottom, snap instantly back to top
-        if (currentScroll >= maxScroll - 2) {
+        // Progress down smoothly by step speed pixels
+        window.scrollBy(0, SCROLL_SPEED);
+        
+        // LOOP CONDITION: If window.scrollY didn't increase after scrollBy, 
+        // it means the browser physically hit the absolute pixel bottom of the page.
+        if (window.scrollY === previousScrollY && window.scrollY > 0) {
             window.scrollTo({ top: 0, behavior: 'instant' });
-        } else {
-            // Smoothly progress down by step pixels
-            window.scrollBy(0, SCROLL_SPEED);
         }
-    }, 30); // ~33 frames per second for smooth rendering
+    }, 30); // ~33 frames per second for liquid smooth rendering
 }
 
 function stopAutoscroll() {
