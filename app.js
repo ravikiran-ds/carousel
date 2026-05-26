@@ -46,6 +46,7 @@ async function initializeSystem() {
         setTimeout(() => {
             splash.remove();
             setupInteractionListeners(); // Listen for user overrides
+            startAutoscroll(); // Instantly fire autoscroll right out of the splash gate
         }, 400);
     }
 }
@@ -71,7 +72,7 @@ async function loadFilterModel() {
     }
 }
 
-// BULLETPROOF INFINITE AUTOSCROLL ENGINE (Timing & Height Insensitive)
+// BULLETPROOF INFINITE AUTOSCROLL ENGINE
 function startAutoscroll() {
     if (autoscrollInterval) return; // Prevent duplicate loops
     
@@ -83,8 +84,7 @@ function startAutoscroll() {
         // Advance down smoothly
         scrollContainer.scrollTop += SCROLL_SPEED;
         
-        // LOOP CONDITION: If the window position stalls, or if it physically reaches 
-        // the bottom layout wall, loop instantly back to the top of the wedding wall.
+        // LOOP CONDITION: Reset to top if we hit the bottom wall or if the scrolling stalls
         if (scrollContainer.scrollTop === previousScrollY && previousScrollY > 0) {
             scrollContainer.scrollTo({ top: 0, behavior: 'instant' });
         }
@@ -213,16 +213,14 @@ async function loadGallery() {
             return timeA - timeB;
         });
 
+        // SAFETY LOCK TRAP FIXED: Even if image counts match, ensure autoscroll is running
         if (images.length === activeImagesArray.length) {
-            // Safety measure: If loop dropped out, reactivate scrolling engine
             if (!autoscrollInterval && document.getElementById('lightbox').style.display !== 'block') {
                 startAutoscroll();
             }
             return;
         }
         
-        // If data changes, halt current scroll parameters to clean layout safely
-        stopAutoscroll();
         activeImagesArray = images;
 
         const grid = document.getElementById('photoGrid');
@@ -231,18 +229,6 @@ async function loadGallery() {
         if (images.length === 0) {
             grid.innerHTML = '<div class="text-center text-muted py-5 w-100">Gallery album is empty.</div>';
             return;
-        }
-
-        let loadedCount = 0;
-        const totalImages = images.length;
-
-        // Callback tracker ensuring autoscroll kicks off only after content is rendered on screen
-        function itemLoadedCallback() {
-            loadedCount++;
-            if (loadedCount === totalImages) {
-                // All items have rendered and populated page height. Start scrolling!
-                setTimeout(startAutoscroll, 500);
-            }
         }
 
         images.forEach((img, index) => {
@@ -258,29 +244,27 @@ async function loadGallery() {
                 videoEl.playsInline = true;
                 videoEl.muted = true;
                 videoEl.setAttribute('loading', 'lazy');
-                
-                // Track when video metadata fixes heights
-                videoEl.onloadeddata = itemLoadedCallback;
-                videoEl.onerror = itemLoadedCallback; // Fallback bound prevent stalling
-                
                 card.appendChild(videoEl);
             } else {
                 const imageEl = document.createElement('img');
                 imageEl.src = img.download_url;
                 imageEl.setAttribute('loading', 'lazy');
-                
-                // Track image render state bounds
-                imageEl.onload = itemLoadedCallback;
-                imageEl.onerror = itemLoadedCallback;
-                
                 card.appendChild(imageEl);
             }
             grid.appendChild(card);
         });
+
+        // REFRESH SAFETY TRIGGER: When content changes, pause briefly for elements to mount, then force-start autoscroll
+        if (document.getElementById('lightbox').style.display !== 'block') {
+            stopAutoscroll();
+            setTimeout(startAutoscroll, 800); 
+        }
+
     } catch (err) { 
         console.error("Gallery frame sync error:", err); 
-        // Force recovery starter if data stream blocks loops
-        setTimeout(startAutoscroll, 2000);
+        if (!autoscrollInterval && document.getElementById('lightbox').style.display !== 'block') {
+            startAutoscroll();
+        }
     }
 }
 
@@ -393,6 +377,19 @@ async function uploadPhoto() {
         
         btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading (${i + 1}/${totalFiles})...`;
         status.innerHTML = `<span class="text-warning">${currentProgressMsg} Reading media files...</span>`;
+
+        if (file.name.match(/\.(heic|heif)$/i) || file.type === "image/heic" || file.type === "image/heif") {
+            status.innerHTML = `<span class="text-warning">${currentProgressMsg} Converting Apple HEIC to standard JPEG...</span>`;
+            try {
+                const conversionResult = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.70 });
+                const processedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
+                file = new File([processedBlob], file.name.replace(/\.(heic|heif)$/i, ".jpg"), { type: "image/jpeg" });
+            } catch (heicErr) {
+                console.error("HEIC parsing error:", heicErr);
+                status.innerHTML = `<span class="text-danger">${currentProgressMsg} Conversion failed for Apple format.</span>`;
+                continue;
+            }
+        }
 
         const timestamp = Date.now() + i;
         const baseFileName = `guest_${timestamp}`;
