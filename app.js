@@ -14,12 +14,6 @@ const GITHUB_TOKEN = (tokenPart1 && tokenPart2) ? (tokenPart1 + tokenPart2) : ""
 const apiUrl = `https://api.github.com/repos/${username}/${repo}/contents/`;
 let activeImagesArray = []; 
 let currentLightboxIndex = -1;
-let nsfwModel = null;
-
-// Autoscroll tracking variables
-let autoscrollInterval = null;
-let userInteractingTimeout = null;
-const SCROLL_SPEED = 1; // Pixels per frame (1 = smooth slow, 2 = faster)
 
 const isLiveMode = GITHUB_TOKEN.trim() !== "" && !GITHUB_TOKEN.includes("FIRST_HALF_OF_YOUR_TOKEN");
 
@@ -31,9 +25,7 @@ async function initializeSystem() {
         document.getElementById('uploadBar').classList.remove('d-none');
         document.body.classList.add('has-upload-bar');
         
-        updateSplashStatus("Compiling safety parameters...");
-        await loadFilterModel();
-        
+        // Sync gallery snapshots every 15 seconds
         setInterval(loadGallery, 15000); 
     }
     
@@ -43,11 +35,7 @@ async function initializeSystem() {
     const splash = document.getElementById('splashScreen');
     if (splash) {
         splash.style.opacity = '0';
-        setTimeout(() => {
-            splash.remove();
-            setupInteractionListeners(); // Listen for user overrides
-            startAutoscroll(); // Instantly fire autoscroll right out of the splash gate
-        }, 400);
+        setTimeout(() => splash.remove(), 400);
     }
 }
 
@@ -61,63 +49,7 @@ function renderGlowSkeletons() {
     if (grid) grid.innerHTML = Array(6).fill('<div class="grid-item skeleton-placeholder"></div>').join('');
 }
 
-async function loadFilterModel() {
-    try {
-        if (typeof nsfwjs !== 'undefined') {
-            nsfwModel = await nsfwjs.load();
-            console.log("NSFW Filter online.");
-        }
-    } catch (err) {
-        console.error("AI filter failed to load:", err);
-    }
-}
-
-// BULLETPROOF INFINITE AUTOSCROLL ENGINE
-function startAutoscroll() {
-    if (autoscrollInterval) return; // Prevent duplicate loops
-    
-    const scrollContainer = document.scrollingElement || document.documentElement || document.body;
-    
-    autoscrollInterval = setInterval(() => {
-        const previousScrollY = scrollContainer.scrollTop;
-        
-        // Advance down smoothly
-        scrollContainer.scrollTop += SCROLL_SPEED;
-        
-        // LOOP CONDITION: Reset to top if we hit the bottom wall or if the scrolling stalls
-        if (scrollContainer.scrollTop === previousScrollY && previousScrollY > 0) {
-            scrollContainer.scrollTo({ top: 0, behavior: 'instant' });
-        }
-    }, 30); // ~33fps for screen fluidity
-}
-
-function stopAutoscroll() {
-    clearInterval(autoscrollInterval);
-    autoscrollInterval = null;
-}
-
-function handleUserInteraction() {
-    stopAutoscroll();
-    clearTimeout(userInteractingTimeout);
-    
-    // Resumes automated scroll after 10 seconds of complete idle state
-    userInteractingTimeout = setTimeout(() => {
-        if (document.getElementById('lightbox').style.display !== 'block') {
-            startAutoscroll();
-        }
-    }, 10000);
-}
-
-function setupInteractionListeners() {
-    window.addEventListener('scroll', () => {
-        if (autoscrollInterval === null && userInteractingTimeout === null) return; 
-        handleUserInteraction();
-    }, { passive: true });
-    
-    window.addEventListener('touchstart', handleUserInteraction, { passive: true });
-    window.addEventListener('wheel', handleUserInteraction, { passive: true });
-}
-
+// HIGH-SPEED MOBILE COMPRESSION ENGINE (Hardware Accelerated)
 function compressImage(imgElement) {
     return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
@@ -140,6 +72,7 @@ function compressImage(imgElement) {
     });
 }
 
+// 30-SECOND VIDEO TRIMMING + 1080p CAPTURE ENGINE
 function trimAndResizeVideo(file) {
     return new Promise((resolve, reject) => {
         const video = document.createElement('video');
@@ -213,14 +146,7 @@ async function loadGallery() {
             return timeA - timeB;
         });
 
-        // SAFETY LOCK TRAP FIXED: Even if image counts match, ensure autoscroll is running
-        if (images.length === activeImagesArray.length) {
-            if (!autoscrollInterval && document.getElementById('lightbox').style.display !== 'block') {
-                startAutoscroll();
-            }
-            return;
-        }
-        
+        if (images.length === activeImagesArray.length) return;
         activeImagesArray = images;
 
         const grid = document.getElementById('photoGrid');
@@ -254,24 +180,13 @@ async function loadGallery() {
             grid.appendChild(card);
         });
 
-        // REFRESH SAFETY TRIGGER: When content changes, pause briefly for elements to mount, then force-start autoscroll
-        if (document.getElementById('lightbox').style.display !== 'block') {
-            stopAutoscroll();
-            setTimeout(startAutoscroll, 800); 
-        }
-
     } catch (err) { 
         console.error("Gallery frame sync error:", err); 
-        if (!autoscrollInterval && document.getElementById('lightbox').style.display !== 'block') {
-            startAutoscroll();
-        }
     }
 }
 
+// LIGHTBOX MEDIA VIEWER
 function openLightbox(index) {
-    stopAutoscroll(); 
-    clearTimeout(userInteractingTimeout);
-
     currentLightboxIndex = index;
     const lightbox = document.getElementById('lightbox');
     const container = document.getElementById('lightboxMediaContainer');
@@ -292,7 +207,6 @@ function closeLightbox(event) {
     if (event.target.id === 'lightbox' || event.target.className === 'close-btn' || event.target.classList.contains('lightbox-content-wrapper')) {
         document.getElementById('lightbox').style.display = 'none';
         document.body.style.overflow = 'auto'; 
-        handleUserInteraction();
     }
 }
 
@@ -325,7 +239,6 @@ document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { 
             document.getElementById('lightbox').style.display = 'none'; 
             document.body.style.overflow = 'auto'; 
-            handleUserInteraction();
         }
     }
 });
@@ -348,7 +261,7 @@ function uploadToGoogleDrivePlainForm(base64Content, fileMimeType, fullTargetNam
         })
         .then(() => resolve())
         .catch((err) => {
-            console.warn("Drive stream background trace log warning:", err);
+            console.warn("Drive background sync log issue:", err);
             resolve();
         });
     });
@@ -360,16 +273,12 @@ async function uploadPhoto() {
     const fileInput = document.getElementById('photoInput');
     const status = document.getElementById('uploadStatus');
     const btn = document.getElementById('uploadBtn');
-    const scannerImg = document.getElementById('imgScanner');
     
     const filesList = fileInput.files;
     if (filesList.length === 0) { status.innerText = "Please select files first."; return; }
     
     btn.disabled = true;
     const totalFiles = filesList.length;
-
-    stopAutoscroll();
-    clearTimeout(userInteractingTimeout);
 
     for (let i = 0; i < totalFiles; i++) {
         let file = filesList[i];
@@ -422,22 +331,6 @@ async function uploadPhoto() {
         }
 
         try {
-            if (nsfwModel) {
-                status.innerHTML = `<span class="text-warning">${currentProgressMsg} Processing content safety scan...</span>`;
-                scannerImg.src = rawOriginalDataUrl;
-                await new Promise((resolve) => { scannerImg.onload = resolve; });
-                
-                const predictions = await nsfwModel.classify(scannerImg);
-                const pornScore = predictions.find(p => p.className === 'Porn').probability;
-                const sexyScore = predictions.find(p => p.className === 'Sexy').probability;
-
-                if (pornScore > 0.50 || sexyScore > 0.65) {
-                    status.innerHTML = `<span class="text-danger">⚠️ ${currentProgressMsg} Skipped: Failed safety regulations.</span>`;
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    continue;
-                }
-            }
-
             status.innerHTML = `<span class="text-warning">${currentProgressMsg} Optimizing file space compression metrics...</span>`;
             const tempImg = new Image();
             tempImg.src = rawOriginalDataUrl;
@@ -462,8 +355,6 @@ async function uploadPhoto() {
     btn.disabled = false;
     status.innerHTML = `<span class="text-success">🎉 All ${totalFiles} items shared successfully!</span>`;
     fileInput.value = '';
-    
-    handleUserInteraction();
 }
 
 async function pushToGitHub(fileName, base64DataString) {
